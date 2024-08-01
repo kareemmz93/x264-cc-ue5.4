@@ -12,3 +12,4 @@
     PublicAdditionalLibraries.Add(Path.Combine(ModuleDirectory, "ThirdParty/x264/release-x64", "libx264.lib"));
     ...
 
+# Test by main.py
