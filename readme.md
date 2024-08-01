@@ -1,4 +1,4 @@
-## Camera Capture by x264 encoding on Unreal Engine 5.4
+## Camera Capture by x264 encoding on UE5.4
 
 # *.Build.cs files
  
