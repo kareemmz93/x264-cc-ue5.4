@@ -18,30 +18,31 @@ UCLASS()
 class MYPROJECT_API ACameraCapture : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	// Sets default values for this actor's properties
 	ACameraCapture();
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	void OnDestroyed();
-public:	
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 
 	void SentImageOverUdp();
 	void OnReceive();
+	bool x264Initialize();
 	void ConvertRGBToYUV420(const TArray<FColor>& RGBData, int32 Width, int32 Height, TArray<uint8>& YUVData);
 	void EncodeImageWithx264(const TArray<uint8>& YUVData, int32 Width, int32 Height, TArray<uint8>& EncodedData);
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture")
 	USceneCaptureComponent2D* SceneCapture;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture")
 	UTextureRenderTarget2D* RenderTarget = nullptr;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture")
 	int Width = 640;
 
@@ -53,5 +54,7 @@ public:
 	bool IsSendable = false;
 
 private:
+	x264_t* encoder = nullptr;
+	x264_picture_t pic_in, pic_out;
 	int FrameNum = 0;
 };
