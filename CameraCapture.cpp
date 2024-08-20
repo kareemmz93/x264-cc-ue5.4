@@ -9,6 +9,8 @@ ACameraCapture::ACameraCapture()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	// For TEST, Remove this part in REAL...
 	SceneCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("SceneCapture"));
 	SceneCapture->SetupAttachment(RootComponent);
 	SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
@@ -17,6 +19,8 @@ ACameraCapture::ACameraCapture()
 	RenderTarget->InitAutoFormat(Width, Height);
 	SceneCapture->TextureTarget = RenderTarget;
 
+	// End
+	
 	// Create UDP socket
 	FIPv4Address LocalAddress;
 	FIPv4Address::Parse(TEXT("127.0.0.1"), LocalAddress);
@@ -62,7 +66,7 @@ void ACameraCapture::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	if (IsSendable) {
-		FrameNum++;
+		
 		SentImageOverUdp();
 	}
 }
