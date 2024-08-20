@@ -1,3 +1,4 @@
+
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
@@ -7,23 +8,20 @@
 // Sets default values
 ACameraCapture::ACameraCapture()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	// For TEST, Remove this part in REAL...
-	SceneCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("SceneCapture"));
-	SceneCapture->SetupAttachment(RootComponent);
-	SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+	//SceneCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("SceneCapture"));
+	//SceneCapture->SetupAttachment(RootComponent);
+	//SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 
-	RenderTarget = CreateDefaultSubobject<UTextureRenderTarget2D>(TEXT("RenderTarget"));
-	RenderTarget->InitAutoFormat(Width, Height);
-	SceneCapture->TextureTarget = RenderTarget;
+	//RenderTarget = CreateDefaultSubobject<UTextureRenderTarget2D>(TEXT("RenderTarget"));
+	//RenderTarget->InitAutoFormat(Width, Height);
+	//SceneCapture->TextureTarget = RenderTarget;
 
-	// End
-	
 	// Create UDP socket
 	FIPv4Address LocalAddress;
-	FIPv4Address::Parse(TEXT("127.0.0.1"), LocalAddress);
+	FIPv4Address::Parse(TEXT("0.0.0.0"), LocalAddress);
 	TSharedPtr<FInternetAddr> LocalEndpoint = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
 	LocalEndpoint->SetIp(LocalAddress.Value);
 	LocalEndpoint->SetPort(0);
@@ -36,10 +34,10 @@ ACameraCapture::ACameraCapture()
 
 	// Set up remote endpoint
 	FIPv4Address RemoteAddress;
-	FIPv4Address::Parse(TEXT("127.0.0.1"), RemoteAddress);
-	/*TSharedPtr<FInternetAddr> RemoteEndpoint = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	RemoteEndpoint->SetIp(RemoteAddress.Value);
-	RemoteEndpoint->SetPort(5000);*/
+	FIPv4Address::Parse(TEXT("192.168.130.33"), RemoteAddress);
+	//TSharedPtr<FInternetAddr> RemoteEndpoint = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+	//RemoteEndpoint->SetIp(RemoteAddress.Value);
+	//RemoteEndpoint->SetPort(5000);
 	this->RemoteEndpoint = FIPv4Endpoint(RemoteAddress, 5000);
 
 	UE_LOG(LogTemp, Log, TEXT("=>Initialized"));
@@ -49,9 +47,52 @@ ACameraCapture::ACameraCapture()
 void ACameraCapture::BeginPlay()
 {
 	Super::BeginPlay();
-	IsSendable = true;
+
+	SceneCapture->SetupAttachment(RootComponent);
+	SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+
+	RenderTarget->InitAutoFormat(Width, Height);
+	SceneCapture->TextureTarget = RenderTarget;
+	
+	IsSendable = x264Initialize();
+}
+
+
+bool ACameraCapture::x264Initialize() {
+
+	x264_param_t param;
+
+	// Initialize x264 parameters
+	x264_param_default_preset(&param, "veryfast", "zerolatency");
+	param.i_width = Width;
+	param.i_height = Height;
+	param.i_csp = X264_CSP_I420;
+	param.b_vfr_input = 0;
+	param.i_bframe = 0;
+
+	// Apply profile (optional but recommended for certain use cases)
+	if (x264_param_apply_profile(&param, "high") < 0) {
+		UE_LOG(LogTemp, Error, TEXT("Failed to apply x264 profile"));
+		return false;
+	}
+
+	// Allocate picture for encoding
+	if (x264_picture_alloc(&pic_in, param.i_csp, param.i_width, param.i_height) < 0) {
+		UE_LOG(LogTemp, Error, TEXT("Failed to allocate picture"));
+		return false;
+	}
+
+	// Open x264 encoder
+	encoder = x264_encoder_open(&param);
+	if (!encoder) {
+		UE_LOG(LogTemp, Error, TEXT("Failed to open x264 encoder"));
+		return false;
+	}
+
+	return true;
 
 }
+
 
 void ACameraCapture::OnDestroyed()
 {
@@ -66,7 +107,6 @@ void ACameraCapture::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	if (IsSendable) {
-		
 		SentImageOverUdp();
 	}
 }
@@ -116,42 +156,11 @@ void ACameraCapture::OnReceive()
 
 void ACameraCapture::EncodeImageWithx264(const TArray<uint8>& YUVData, int32 _Width, int32 _Height, TArray<uint8>& EncodedData)
 {
-	x264_param_t param;
-	x264_picture_t pic_in, pic_out;
-	x264_t* encoder = nullptr;
+	
 	x264_nal_t* nal = nullptr;
 	int i_nal = 0;
 	int frame_size = 0;
 
-	// Initialize x264 parameters
-	x264_param_default_preset(&param, "veryfast", "zerolatency");
-	param.i_width = _Width;
-	param.i_height = _Height;
-	param.i_csp = X264_CSP_I420;
-	param.b_vfr_input = 0;
-	param.i_bframe = FrameNum;
-	//param.i_threads = 1;
-
-	// Apply profile (optional but recommended for certain use cases)
-	if (x264_param_apply_profile(&param, "high") < 0) {
-		UE_LOG(LogTemp, Error, TEXT("Failed to apply x264 profile"));
-		return;
-	}
-
-	// Allocate picture for encoding
-	if (x264_picture_alloc(&pic_in, param.i_csp, param.i_width, param.i_height) < 0) {
-		UE_LOG(LogTemp, Error, TEXT("Failed to allocate picture"));
-		goto fail;
-	}
-
-	// Open x264 encoder
-	encoder = x264_encoder_open(&param);
-	if (!encoder) {
-		UE_LOG(LogTemp, Error, TEXT("Failed to open x264 encoder"));
-		return;
-	}
-
-	
 	// Ensure YUVData is valid
 	if (YUVData.Num() < (_Width * _Height) + 2 * (_Width / 2) * (_Height / 2)) {
 		UE_LOG(LogTemp, Error, TEXT("YUVData size is incorrect"));
@@ -180,11 +189,12 @@ void ACameraCapture::EncodeImageWithx264(const TArray<uint8>& YUVData, int32 _Wi
 	}
 
 fail:
+	;
 	// Clean up
-	if (encoder) {
-		x264_encoder_close(encoder);
-	}
-	x264_picture_clean(&pic_in);
+	//if (encoder) {
+	//	x264_encoder_close(encoder);
+	//}
+	//x264_picture_clean(&pic_in);
 }
 
 
