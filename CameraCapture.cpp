@@ -147,7 +147,7 @@ void ACameraCapture::SentImageOverUdp() {
 
 void ACameraCapture::SendDataInChunks(FSocket* _UDPSocket, const TArray<uint8>& _EncodedData, const FIPv4Endpoint& _RemoteEndpoint)
 {
-	const int32 ChunkSize = 4096;
+	const int32 ChunkSize = 1024;
 	int32 TotalBytesSent = 0;
 	int32 BytesSent = 0;
 	int32 DataSize = _EncodedData.Num();
