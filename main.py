@@ -18,7 +18,7 @@ END_SIGN = b'\x00\x14\x14\x14\x10\x00'  # End sign to indicate the end of a fram
 
 while True:
     # Receive data from the UDP socket
-    data, addr = sock.recvfrom(4096)  # Buffer size is 4096 bytes
+    data, addr = sock.recvfrom(1024)  # Buffer size is 4096 bytes
     data_buffer.extend(data)
 
     # Check if the end sign is in the buffer
