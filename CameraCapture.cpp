@@ -18,6 +18,13 @@ ACameraCapture::ACameraCapture()
 	//RenderTarget = CreateDefaultSubobject<UTextureRenderTarget2D>(TEXT("RenderTarget"));
 	//RenderTarget->InitAutoFormat(Width, Height);
 	//SceneCapture->TextureTarget = RenderTarget;
+	
+}
+
+// Called when the game starts or when spawned
+void ACameraCapture::BeginPlay()
+{
+	Super::BeginPlay();
 
 	// Create UDP socket
 	FIPv4Address LocalAddress;
@@ -40,14 +47,6 @@ ACameraCapture::ACameraCapture()
 	//RemoteEndpoint->SetPort(5000);
 	this->RemoteEndpoint = FIPv4Endpoint(RemoteAddress, 5000);
 
-	UE_LOG(LogTemp, Log, TEXT("=>Initialized"));
-}
-
-// Called when the game starts or when spawned
-void ACameraCapture::BeginPlay()
-{
-	Super::BeginPlay();
-
 	SceneCapture->SetupAttachment(RootComponent);
 	SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 
@@ -55,6 +54,8 @@ void ACameraCapture::BeginPlay()
 	SceneCapture->TextureTarget = RenderTarget;
 	
 	IsSendable = x264Initialize();
+
+	UE_LOG(LogTemp, Log, TEXT("=>Initialized"));
 }
 
 
@@ -67,11 +68,11 @@ bool ACameraCapture::x264Initialize() {
 	param.i_width = Width;
 	param.i_height = Height;
 	param.i_csp = X264_CSP_I420;
-	param.b_vfr_input = 0;
-	param.i_bframe = 0;
+	param.i_bframe = 2;
+
 
 	// Apply profile (optional but recommended for certain use cases)
-	if (x264_param_apply_profile(&param, "high") < 0) {
+	if (x264_param_apply_profile(&param, "main") < 0) {
 		UE_LOG(LogTemp, Error, TEXT("Failed to apply x264 profile"));
 		return false;
 	}
@@ -97,6 +98,11 @@ bool ACameraCapture::x264Initialize() {
 void ACameraCapture::OnDestroyed()
 {
 	// Clean up
+	if (encoder) {
+		x264_encoder_close(encoder);
+	}
+	x264_picture_clean(&pic_in);
+	x264_picture_clean(&pic_out);
 	UDPSocket->Close();
 	ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(UDPSocket);
 }
