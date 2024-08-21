@@ -32,6 +32,7 @@ public:
 
 
 	void SentImageOverUdp();
+	void SendDataInChunks(FSocket* UDPSocket, const TArray<uint8>& EncodedData, const FIPv4Endpoint& RemoteEndpoint);
 	void OnReceive();
 	bool x264Initialize();
 	void ConvertRGBToYUV420(const TArray<FColor>& RGBData, int32 Width, int32 Height, TArray<uint8>& YUVData);
