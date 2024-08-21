@@ -64,18 +64,17 @@ bool ACameraCapture::x264Initialize() {
 	x264_param_t param;
 
 	// Initialize x264 parameters
-	x264_param_default_preset(&param, "veryfast", "zerolatency");
+	x264_param_default_preset(&param, "fast", "zerolatency");
 	param.i_width = Width;
 	param.i_height = Height;
 	param.i_csp = X264_CSP_I420;
-	param.i_bframe = 2;
-
 
 	// Apply profile (optional but recommended for certain use cases)
-	if (x264_param_apply_profile(&param, "main") < 0) {
+	if (x264_param_apply_profile(&param, "high") < 0) {
 		UE_LOG(LogTemp, Error, TEXT("Failed to apply x264 profile"));
 		return false;
 	}
+
 
 	// Allocate picture for encoding
 	if (x264_picture_alloc(&pic_in, param.i_csp, param.i_width, param.i_height) < 0) {
@@ -140,11 +139,37 @@ void ACameraCapture::SentImageOverUdp() {
 	// Send data
 
 	int32 BytesSent = 0;
-	UDPSocket->SendTo(EncodedData.GetData(), EncodedData.Num(), BytesSent, *RemoteEndpoint.ToInternetAddr());
-	UE_LOG(LogTemp, Log, TEXT("%d bytes was sent"), BytesSent);
+	SendDataInChunks(UDPSocket, EncodedData, RemoteEndpoint);
+	//UDPSocket->SendTo(EncodedData.GetData(), EncodedData.Num(), BytesSent, *RemoteEndpoint.ToInternetAddr());
+	//UE_LOG(LogTemp, Log, TEXT("%d bytes was sent"), BytesSent);
 
 }
 
+void ACameraCapture::SendDataInChunks(FSocket* _UDPSocket, const TArray<uint8>& _EncodedData, const FIPv4Endpoint& _RemoteEndpoint)
+{
+	const int32 ChunkSize = 4096;
+	int32 TotalBytesSent = 0;
+	int32 BytesSent = 0;
+	int32 DataSize = _EncodedData.Num();
+	int32 Offset = 0;
+
+	while (Offset < DataSize)
+	{
+		int32 BytesToSend = FMath::Min(ChunkSize, DataSize - Offset);
+		_UDPSocket->SendTo(_EncodedData.GetData() + Offset, BytesToSend, BytesSent, *_RemoteEndpoint.ToInternetAddr());
+		TotalBytesSent += BytesSent;
+		Offset += BytesToSend;
+
+		UE_LOG(LogTemp, Log, TEXT("%d bytes was sent"), BytesSent);
+	}
+
+	// Send the sign at the end of the data transmission
+	const char EndSign[] = {'\0', '\24' ,'\24','\24', '\20', '\0'}; // You can change this to any sign you prefer
+	_UDPSocket->SendTo((uint8*)&EndSign, sizeof(EndSign), BytesSent, *_RemoteEndpoint.ToInternetAddr());
+	TotalBytesSent += BytesSent;
+
+	UE_LOG(LogTemp, Log, TEXT("Total %d bytes was sent including end sign"), TotalBytesSent);
+}
 
 void ACameraCapture::OnReceive()
 {
@@ -162,7 +187,7 @@ void ACameraCapture::OnReceive()
 
 void ACameraCapture::EncodeImageWithx264(const TArray<uint8>& YUVData, int32 _Width, int32 _Height, TArray<uint8>& EncodedData)
 {
-	
+
 	x264_nal_t* nal = nullptr;
 	int i_nal = 0;
 	int frame_size = 0;
