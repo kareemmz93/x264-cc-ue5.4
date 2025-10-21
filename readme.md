@@ -1,6 +1,5 @@
 # Camera Capture by x264 encoding on UE5.4
 
-
 ## *.Build.cs files
  
     ...
